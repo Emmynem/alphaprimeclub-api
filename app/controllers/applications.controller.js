@@ -133,6 +133,7 @@ export async function addApplication(req, res) {
 							company_name: payload.company_name,
 							industry: payload.industry,
 							linkedin_profile: payload.linkedin_profile,
+							residential_address: payload.residential_address,
 							why: payload.why,
 							what: payload.what,
 							how: payload.how,

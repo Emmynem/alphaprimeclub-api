@@ -50,6 +50,10 @@ export default (sequelize, Sequelize) => {
 			type: Sequelize.STRING(300),
 			allowNull: false,
 		},
+		residential_address: {
+			type: Sequelize.STRING(300),
+			allowNull: false,
+		},
 		why: {
 			type: Sequelize.STRING(3000),
 			allowNull: false

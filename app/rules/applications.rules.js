@@ -122,6 +122,11 @@ export const applications_rules = {
 			.bail()
 			.isURL()
 			.withMessage("Value must be a specified url"),
+		check('residential_address', "Residential Address is required")
+			.exists({ checkNull: true, checkFalsy: true })
+			.bail()
+			.isString().isLength({ min: 3, max: 300 })
+			.withMessage("Invalid length (3 - 300) characters"),
 		check('why', "Why is required")
 			.exists({ checkNull: true, checkFalsy: true })
 			.bail()
