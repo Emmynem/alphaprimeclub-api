@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 
-export const primary_domain = "https://example.com";
+export const primary_domain = "https://alphaprimeclub.com";
 export const mailer_url = "https://api.mailer.xnyder.com";
 
 export const api_keys = [
