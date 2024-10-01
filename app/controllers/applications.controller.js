@@ -3,7 +3,7 @@ import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
 import { ServerError, SuccessResponse, ValidationError, OtherSuccessResponse, NotFoundError, BadRequestError, logger } from '../common/index.js';
 import {
-	application_status, default_status, mailer_url, paginate, return_all_letters_uppercase
+	application_status, default_status, mailer_url, paginate, payment_methods, processing, random_uuid, return_all_letters_uppercase, transaction_types
 } from '../config/config.js';
 import db from "../models/index.js";
 import dotenv from 'dotenv';
@@ -14,6 +14,7 @@ const {
 } = process.env;
 
 const APPLICATIONS = db.applications;
+const PAYMENTS = db.payments;
 const Op = db.Sequelize.Op;
 
 const getFileExtension = (filename) => {
@@ -121,33 +122,55 @@ export async function addApplication(req, res) {
 			// 	if (mailer_response.data.data === null) {
 			// 		BadRequestError(response, { unique_id: api_key, text: "No data found" }, null);
 			// 	} else {
-					const application = await APPLICATIONS.create(
-						{
-							unique_id: uuidv4(),
-							fullname: payload.fullname,
-							email: payload.email,
-							phone_number: payload.phone_number,
-							gender: payload.gender,
-							date_of_birth: payload.date_of_birth,
-							job_title: payload.job_title,
-							company_name: payload.company_name,
-							industry: payload.industry,
-							linkedin_profile: payload.linkedin_profile,
-							residential_address: payload.residential_address,
-							why: payload.why,
-							what: payload.what,
-							how: payload.how,
-							any: payload.any ? payload.any : null,
-							application_status: application_status.pending,
-							status: default_status
-						}
-					);
+					const application_unique_id = uuidv4();
+					const details = `NGN ${payload.amount.toLocaleString()} ${transaction_types.payment.toLowerCase()}, via ${payment_methods.card}`;
+					const payment_unique_id = uuidv4();
+					const reference = random_uuid(4);
 
-					if (application) {
-						SuccessResponse(res, { unique_id: api_key, text: "Application added successfully!" }, null);
-					} else {
-						BadRequestError(res, { unique_id: api_key, text: "Error adding application" }, null);
-					}
+					await db.sequelize.transaction(async (transaction) => {
+						const application = await APPLICATIONS.create(
+							{
+								unique_id: application_unique_id,
+								fullname: payload.fullname,
+								email: payload.email,
+								phone_number: payload.phone_number,
+								gender: payload.gender,
+								date_of_birth: payload.date_of_birth,
+								job_title: payload.job_title,
+								company_name: payload.company_name,
+								industry: payload.industry,
+								linkedin_profile: payload.linkedin_profile,
+								residential_address: payload.residential_address,
+								why: payload.why,
+								what: payload.what,
+								how: payload.how,
+								any: payload.any ? payload.any : null,
+								application_status: application_status.pending,
+								status: default_status
+							}, { transaction }
+						);
+
+						const payment = await PAYMENTS.create(
+							{
+								unique_id: payment_unique_id,
+								application_unique_id: application_unique_id,
+								type: transaction_types.payment,
+								gateway: return_all_letters_uppercase(payload.gateway),
+								payment_method: payment_methods.card,
+								amount: parseInt(payload.amount),
+								reference: payload.reference ? payload.reference : reference,
+								payment_status: processing,
+								details,
+								status: default_status
+							}, { transaction }
+						);
+
+						if (application && payment) {
+							SuccessResponse(res, { unique_id: api_key, text: "Application added successfully!" }, { unique_id: payment_unique_id, reference: payment.reference, amount: payload.amount });
+						} else {
+							throw new Error("Error adding application");
+						}
+					});
 			// 	}
 			// } else {
 			// 	BadRequestError(res, { unique_id: api_key, text: mailer_response.data.message }, null);

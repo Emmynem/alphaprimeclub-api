@@ -4,9 +4,11 @@ import helmet from "helmet";
 import { SuccessResponse } from './common/index.js';
 import logger from "./common/logger.js";
 import { alphaprimeclub_header_key, primary_domain } from './config/config.js';
+import { createAppDefaults } from './config/default.config.js';
 import morganMiddleware from "./middleware/morgan.js";
 import db from "./models/index.js";
 import applicationsRoutes from "./routes/applications.routes.js";
+import paymentsRoutes from "./routes/payments.routes.js";
 
 const app = express();
 
@@ -48,12 +50,15 @@ app.get("/", (request, response) => {
 // Sequelize initialization
 db.sequelize.sync({ alter: false }).then(() => {
 	logger.info("DB Connected 🚀");
+	// creating defaults
+	createAppDefaults();
 });
 
 // app.use(express.static(path.join(__dirname, '../public')));
 
 // Binding routes
 applicationsRoutes(app);
+paymentsRoutes(app);
 
 // change timezone for app
 process.env.TZ = "UTC";

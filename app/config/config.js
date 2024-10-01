@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const primary_domain = "https://alphaprimeclub.com";
 export const mailer_url = "https://api.mailer.xnyder.com";
+export const paystack_verify_payment_url = "https://api.paystack.co/transaction/verify/";
+export const squad_sandbox_verify_payment_url = "https://sandbox-api-d.squadco.com/transaction/verify/";
+export const squad_live_verify_payment_url = "https://api-d.squadco.com/transaction/verify/";
 
 export const api_keys = [
 	"5786c4e6-793d-4d26-aba4-f0fbc26e7db4", // Used
@@ -27,6 +30,7 @@ export const api_keys = [
 ];
 
 export const tag_root = "Root";
+export const anonymous = "Anonymous";
 export const db_start = "alphaprimeclub_";
 export const db_end = "_tbl";
 
@@ -47,11 +51,118 @@ export const default_status = 1;
 export const default_delete_status = 0;
 export const default_pending_status = 2;
 
+export const zero = 0;
+
+// App Defaults 
+export const app_defaults = {
+	api_whitelist: "Api_Whitelist",
+	paystack_public_key: "Paystack_Public_Key",
+	paystack_secret_key: "Paystack_Secret_Key",
+	squad_public_key: "Squad_Public_Key",
+	squad_secret_key: "Squad_Secret_Key",
+	users_emails: "Users_Emails",
+	users_phone_numbers: "Users_Phone_Numbers",
+	maintenance: "Maintenance"
+};
+
+export const default_app_values = [
+	{
+		unique_id: uuidv4(),
+		criteria: "Maintenance",
+		data_type: "BOOLEAN",
+		value: false,
+		status: 1
+	},
+	{
+		unique_id: uuidv4(),
+		criteria: "Paystack_Secret_Key",
+		data_type: "STRING",
+		value: null,
+		status: 1
+	},
+	{
+		unique_id: uuidv4(),
+		criteria: "Paystack_Public_Key",
+		data_type: "STRING",
+		value: null,
+		status: 1
+	},
+	{
+		unique_id: uuidv4(),
+		criteria: "Squad_Secret_Key",
+		data_type: "STRING",
+		value: null,
+		status: 1
+	},
+	{
+		unique_id: uuidv4(),
+		criteria: "Squad_Public_Key",
+		data_type: "STRING",
+		value: null,
+		status: 1
+	},
+	{
+		unique_id: uuidv4(),
+		criteria: "Users_Emails",
+		data_type: "ARRAY",
+		value: null,
+		status: 1
+	},
+	{
+		unique_id: uuidv4(),
+		criteria: "Users_Phone_Numbers",
+		data_type: "ARRAY",
+		value: null,
+		status: 1
+	},
+	{
+		unique_id: uuidv4(),
+		criteria: "Api_Whitelist",
+		data_type: "ARRAY",
+		value: null,
+		status: 1
+	}
+];
+// End - App Defaults
+
 export const check_length_TINYTEXT = 255;
 export const check_length_TEXT = 65535;
 export const check_length_MEDIUMTEXT = 16777215;
 export const check_length_LONGTEXT = 4294967295;
 
+
+// Default Actions
+export const completed = "Completed";
+export const processing = "Processing";
+export const cancelled = "Cancelled";
+export const refunded = "Refunded";
+export const pending = "Pending";
+export const payment_methods = {
+	card: "Credit/Debit Card",
+	wallet: "Wallet",
+	transfer: "Transfer"
+};
+export const gateways = {
+	paystack: "PAYSTACK",
+	squad: "SQUAD",
+	internal: "INTERNAL"
+};
+// End - Default Actions
+
+// Default Transaction Types
+export const withdrawal = "Withdrawal";
+export const deposit = "Deposit";
+export const refund = "Refund";
+export const payment = "Payment";
+export const reversal = "Reversal";
+export const transfer = "Transfer";
+export const fees = "Fees";
+export const subscription = "Subscription";
+export const charges = "Charges";
+export const transaction_types = { withdrawal, deposit, refund, payment, reversal, transfer, fees, subscription, charges };
+// End - Default Transaction Types
+
+export const app_defaults_data_type = ['STRING', 'INTEGER', 'BIGINT', 'BOOLEAN'];
 export const paginate_limit = 20;
 
 // File lengths
@@ -245,6 +356,7 @@ export const validate_future_end_date = (_start, _end) => {
 	if (start.getTime() >= end.getTime()) return false;
 	return true;
 };
+
 export const validate_future_end_date_alt = (_start, _end) => {
 	const start = new Date(_start);
 	const end = new Date(_end * 1000);
@@ -252,6 +364,33 @@ export const validate_future_end_date_alt = (_start, _end) => {
 	if (end === "Invalid Date") return false;
 	if (start.getTime() >= end.getTime()) return false;
 	return true;
+};
+
+export const validate_payment_method = (obj) => {
+	const method = obj;
+	if (method !== payment_methods.card && method !== payment_methods.wallet && method !== payment_methods.transfer) return false;
+	return true;
+};
+
+export const validate_gateway = (obj) => {
+	const method = obj;
+	if (method !== gateways.paystack && method !== gateways.squad && method !== gateways.internal) return false;
+	return true;
+};
+
+export const validate_app_default_type = (app_default) => {
+	if (!app_defaults_data_type.includes(app_default)) return false;
+	return true;
+};
+
+export const validate_app_default_value = (value, data_type) => {
+	if (data_type === "BOOLEAN" && typeof value === "boolean") return true
+	else if (data_type === "STRING" && typeof value === "string") return true
+	else if (data_type === "INTEGER" && typeof value === "number") return true
+	else if (data_type === "BIGINT" && typeof value === "bigint") return true
+	else if (data_type === "ARRAY" && Array.isArray(value) && value.length !== 0) return true
+	else if (data_type === "MAP" && typeof value === "object") return true
+	else return false
 };
 
 export const paginate = (page, _records, total_records) => {
