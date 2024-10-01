@@ -9,7 +9,7 @@ export const squad_live_verify_payment_url = "https://api-d.squadco.com/transact
 
 export const api_keys = [
 	"5786c4e6-793d-4d26-aba4-f0fbc26e7db4", // Used
-	"7d4ff051-637f-4d71-aa48-72f74e5d7363",
+	"7d4ff051-637f-4d71-aa48-72f74e5d7363", // Used
 	"fdd3e012-a951-4762-8f58-384dbff61883",
 	"4dd6415a-bce5-4c15-b093-7bc7ade605f7",
 	"bacfceb4-c049-40e4-8aea-df15825197ae",
