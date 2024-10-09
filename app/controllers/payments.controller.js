@@ -1,16 +1,19 @@
 import { validationResult, matchedData } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
 import axios from "axios";
-// import dotenv from 'dotenv';
+import dotenv from 'dotenv';
 import { ServerError, SuccessResponse, ValidationError, OtherSuccessResponse, NotFoundError, CreationSuccessResponse, BadRequestError, logger } from '../common/index.js';
 import {
 	default_delete_status, default_status, true_status, false_status, paginate, tag_root, return_all_letters_uppercase, random_uuid,
 	anonymous, zero, completed, processing, cancelled, refunded, payment_methods, gateways, transaction_types, mailer_url, return_all_letters_lowercase, 
 	paystack_verify_payment_url, squad_sandbox_verify_payment_url, squad_live_verify_payment_url, app_defaults, application_status, 
 } from '../config/config.js';
+import { user_cancel_payment, user_cancel_payment_via_reference, user_complete_payment } from '../config/templates.js';
 import db from "../models/index.js";
 
-// dotenv.config();
+dotenv.config();
+
+const { clouder_key, cloudy_name, cloudy_key, cloudy_secret, cloud_mailer_key, host_type, smtp_host, cloud_mailer_username, cloud_mailer_password, from_email } = process.env;
 
 const PAYMENTS = db.payments;
 const APPLICATIONS = db.applications;
@@ -357,28 +360,64 @@ export async function cancelPayment(req, res) {
 					payment_status: processing,
 					status: default_status
 				},
+				include: [
+					{
+						model: APPLICATIONS,
+						attributes: ['unique_id', 'fullname', 'email', 'application_status']
+					},
+				]
 			});
 
 			if (current_payment) {
-				await db.sequelize.transaction(async (transaction) => {
-					const payments = await PAYMENTS.update(
-						{
-							payment_status: cancelled,
-						}, {
-							where: {
-								unique_id: payload.unique_id,
-								status: default_status
-							},
-							transaction
-						}
-					);
+				const { email_html, email_subject, email_text } = user_cancel_payment();
 
-					if (payments > 0) {
-						SuccessResponse(res, { unique_id: api_key, text: "Payment was cancelled successfully!" }, null);
-					} else {
-						throw new Error("Payment not found");
+				const mailer_response = await axios.post(
+					`${mailer_url}/send`,
+					{
+						host_type: host_type,
+						smtp_host: smtp_host,
+						username: cloud_mailer_username,
+						password: cloud_mailer_password,
+						from_email: from_email,
+						to_email: current_payment.application.email,
+						subject: email_subject,
+						text: email_text,
+						html: email_html
+					},
+					{
+						headers: {
+							'mailer-access-key': cloud_mailer_key
+						}
 					}
-				});
+				);
+
+				if (mailer_response.data.success) {
+					if (mailer_response.data.data === null) {
+						BadRequestError(response, { unique_id: api_key, text: "Unable to send email to user" }, null);
+					} else {
+						await db.sequelize.transaction(async (transaction) => {
+							const payments = await PAYMENTS.update(
+								{
+									payment_status: cancelled,
+								}, {
+									where: {
+										unique_id: payload.unique_id,
+										status: default_status
+									},
+									transaction
+								}
+							);
+		
+							if (payments > 0) {
+								SuccessResponse(res, { unique_id: api_key, text: "Payment was cancelled successfully!" }, null);
+							} else {
+								throw new Error("Payment not found");
+							}
+						});
+					}
+				} else {
+					BadRequestError(res, { unique_id: api_key, text: mailer_response.data.message }, null);
+				}
 			} else {
 				BadRequestError(res, { unique_id: api_key, text: "Processing Payment not found!" }, null);
 			}
@@ -406,30 +445,66 @@ export async function cancelPaymentViaReference(req, res) {
 					payment_status: processing,
 					status: default_status
 				},
+				include: [
+					{
+						model: APPLICATIONS,
+						attributes: ['unique_id', 'fullname', 'email', 'application_status']
+					},
+				]
 			});
 
 			if (current_payment) {
-				await db.sequelize.transaction(async (transaction) => {
-					const payments = await PAYMENTS.update(
-						{
-							payment_status: cancelled,
-						}, {
-							where: {
-								reference: payload.reference,
-								type: transaction_types.payment,
-								payment_status: processing,
-								status: default_status
-							},
-							transaction
-						}
-					);
+				const { email_html, email_subject, email_text } = user_cancel_payment_via_reference({ reference: payload.reference });
 
-					if (payments > 0) {
-						SuccessResponse(res, { unique_id: api_key, text: "Payment was cancelled successfully!" }, null);
-					} else {
-						throw new Error("Payment not found");
+				const mailer_response = await axios.post(
+					`${mailer_url}/send`,
+					{
+						host_type: host_type,
+						smtp_host: smtp_host,
+						username: cloud_mailer_username,
+						password: cloud_mailer_password,
+						from_email: from_email,
+						to_email: current_payment.application.email,
+						subject: email_subject,
+						text: email_text,
+						html: email_html
+					},
+					{
+						headers: {
+							'mailer-access-key': cloud_mailer_key
+						}
 					}
-				});
+				);
+
+				if (mailer_response.data.success) {
+					if (mailer_response.data.data === null) {
+						BadRequestError(response, { unique_id: api_key, text: "Unable to send email to user" }, null);
+					} else {
+						await db.sequelize.transaction(async (transaction) => {
+							const payments = await PAYMENTS.update(
+								{
+									payment_status: cancelled,
+								}, {
+									where: {
+										reference: payload.reference,
+										type: transaction_types.payment,
+										payment_status: processing,
+										status: default_status
+									},
+									transaction
+								}
+							);
+		
+							if (payments > 0) {
+								SuccessResponse(res, { unique_id: api_key, text: "Payment was cancelled successfully!" }, null);
+							} else {
+								throw new Error("Payment not found");
+							}
+						});
+					}
+				} else {
+					BadRequestError(res, { unique_id: api_key, text: mailer_response.data.message }, null);
+				}
 			} else {
 				BadRequestError(res, { unique_id: api_key, text: "Processing Payment not found!" }, null);
 			}
@@ -457,6 +532,12 @@ export async function completePayment(req, res) {
 					payment_status: processing,
 					status: default_status
 				},
+				include: [
+					{
+						model: APPLICATIONS,
+						attributes: ['unique_id', 'fullname', 'email', 'application_status']
+					},
+				]
 			});
 
 			if (current_payments_details) {
@@ -485,42 +566,72 @@ export async function completePayment(req, res) {
 								} else if (paystack_transaction_res.data.data.status !== "success") {
 									BadRequestError(res, { unique_id: current_payments_details.application_unique_id, text: `Payment unsuccessful (Status - ${return_all_letters_uppercase(paystack_transaction_res.data.data.status)})` }, null);
 								} else {
-									await db.sequelize.transaction(async (transaction) => {
-										const payments = await PAYMENTS.update(
-											{
-												payment_status: completed,
-											}, {
-												where: {
-													unique_id: current_payments_details.unique_id,
-													type: transaction_types.payment,
-													status: default_status
-												},
-												transaction
-											}
-										);
+									const { email_html, email_subject, email_text } = user_complete_payment({ reference: payload.reference, amount: "NGN " + current_payments_details.amount.toLocaleString() });
 
-										if (payments > 0) {
-											const application_update = await APPLICATIONS.update(
-												{
-													application_status: application_status.paid,
-												}, {
-													where: {
-														unique_id: current_payments_details.application_unique_id,
-														status: default_status
-													},
-													transaction
-												}
-											);
-
-											if (application_update > 0) {
-												SuccessResponse(res, { unique_id: current_payments_details.application_unique_id, text: "Payment was completed successfully!" });
-											} else {
-												throw new Error("Error updating application status");
+									const mailer_response = await axios.post(
+										`${mailer_url}/send`,
+										{
+											host_type: host_type,
+											smtp_host: smtp_host,
+											username: cloud_mailer_username,
+											password: cloud_mailer_password,
+											from_email: from_email,
+											to_email: current_payments_details.application.email,
+											subject: email_subject,
+											text: email_text,
+											html: email_html
+										},
+										{
+											headers: {
+												'mailer-access-key': cloud_mailer_key
 											}
-										} else {
-											throw new Error("Error completing payment");
 										}
-									});
+									);
+
+									if (mailer_response.data.success) {
+										if (mailer_response.data.data === null) {
+											BadRequestError(response, { unique_id: api_key, text: "Unable to send email to user" }, null);
+										} else {
+											await db.sequelize.transaction(async (transaction) => {
+												const payments = await PAYMENTS.update(
+													{
+														payment_status: completed,
+													}, {
+														where: {
+															unique_id: current_payments_details.unique_id,
+															type: transaction_types.payment,
+															status: default_status
+														},
+														transaction
+													}
+												);
+		
+												if (payments > 0) {
+													const application_update = await APPLICATIONS.update(
+														{
+															application_status: application_status.paid,
+														}, {
+															where: {
+																unique_id: current_payments_details.application_unique_id,
+																status: default_status
+															},
+															transaction
+														}
+													);
+		
+													if (application_update > 0) {
+														SuccessResponse(res, { unique_id: current_payments_details.application_unique_id, text: "Payment was completed successfully!" });
+													} else {
+														throw new Error("Error updating application status");
+													}
+												} else {
+													throw new Error("Error completing payment");
+												}
+											});
+										}
+									} else {
+										BadRequestError(res, { unique_id: api_key, text: mailer_response.data.message }, null);
+									}
 								}
 							} catch (error) {
 								BadRequestError(res, { unique_id: current_payments_details.application_unique_id, text: error.response ? error.response.data.message : error.message }, { err_code: error.code });
@@ -556,43 +667,73 @@ export async function completePayment(req, res) {
 								// 	BadRequestError(res, { unique_id: current_payments_details.application_unique_id, text: `Invalid transaction amount!` }, null);
 								// } 
 								else {
-									await db.sequelize.transaction(async (transaction) => {
-										const payments = await PAYMENTS.update(
-											{
-												payment_status: completed,
-											}, {
-												where: {
-													unique_id: current_payments_details.unique_id,
-													reference: payload.reference,
-													type: transaction_types.payment,
-													status: default_status
-												},
-												transaction
-											}
-										);
+									const { email_html, email_subject, email_text } = user_complete_payment({ reference: payload.reference, amount: "NGN " + current_payments_details.amount.toLocaleString() });
 
-										if (payments > 0) {
-											const application_update = await APPLICATIONS.update(
-												{
-													application_status: application_status.paid,
-												}, {
-													where: {
-														unique_id: current_payments_details.application_unique_id,
-														status: default_status
-													},
-													transaction
-												}
-											);
-
-											if (application_update > 0) {
-												SuccessResponse(res, { unique_id: current_payments_details.application_unique_id, text: "Payment was completed successfully!" });
-											} else {
-												throw new Error("Error updating application status");
+									const mailer_response = await axios.post(
+										`${mailer_url}/send`,
+										{
+											host_type: host_type,
+											smtp_host: smtp_host,
+											username: cloud_mailer_username,
+											password: cloud_mailer_password,
+											from_email: from_email,
+											to_email: current_payments_details.application.email,
+											subject: email_subject,
+											text: email_text,
+											html: email_html
+										},
+										{
+											headers: {
+												'mailer-access-key': cloud_mailer_key
 											}
-										} else {
-											throw new Error("Error completing payment");
 										}
-									});
+									);
+
+									if (mailer_response.data.success) {
+										if (mailer_response.data.data === null) {
+											BadRequestError(response, { unique_id: api_key, text: "Unable to send email to user" }, null);
+										} else {
+											await db.sequelize.transaction(async (transaction) => {
+												const payments = await PAYMENTS.update(
+													{
+														payment_status: completed,
+													}, {
+														where: {
+															unique_id: current_payments_details.unique_id,
+															reference: payload.reference,
+															type: transaction_types.payment,
+															status: default_status
+														},
+														transaction
+													}
+												);
+		
+												if (payments > 0) {
+													const application_update = await APPLICATIONS.update(
+														{
+															application_status: application_status.paid,
+														}, {
+															where: {
+																unique_id: current_payments_details.application_unique_id,
+																status: default_status
+															},
+															transaction
+														}
+													);
+		
+													if (application_update > 0) {
+														SuccessResponse(res, { unique_id: current_payments_details.application_unique_id, text: "Payment was completed successfully!" });
+													} else {
+														throw new Error("Error updating application status");
+													}
+												} else {
+													throw new Error("Error completing payment");
+												}
+											});
+										}
+									} else {
+										BadRequestError(res, { unique_id: api_key, text: mailer_response.data.message }, null);
+									}
 								}
 							} catch (error) {
 								BadRequestError(res, { unique_id: current_payments_details.application_unique_id, text: error.response ? error.response.data.message : error.message }, { err_code: error.code });
@@ -604,43 +745,73 @@ export async function completePayment(req, res) {
 						BadRequestError(res, { unique_id: current_payments_details.application_unique_id, text: "Invalid transaction gateway!" }, null);
 					}
 				} else {
-					await db.sequelize.transaction(async (transaction) => {
-						const payments = await PAYMENTS.update(
-							{
-								payment_status: completed,
-							}, {
-								where: {
-									unique_id: current_payments_details.unique_id,
-									reference: payload.reference,
-									type: transaction_types.payment,
-									status: default_status
-								},
-								transaction
-							}
-						);
+					const { email_html, email_subject, email_text } = user_complete_payment({ reference: payload.reference, amount: "NGN " + current_payments_details.amount.toLocaleString() });
 
-						if (payments > 0) {
-							const application_update = await APPLICATIONS.update(
-								{
-									application_status: application_status.paid,
-								}, {
-									where: {
-										unique_id: current_payments_details.application_unique_id,
-										status: default_status
-									},
-									transaction
-								}
-							);
-
-							if (application_update > 0) {
-								SuccessResponse(res, { unique_id: current_payments_details.application_unique_id, text: "Payment was completed successfully!" });
-							} else {
-								throw new Error("Error updating application status");
+					const mailer_response = await axios.post(
+						`${mailer_url}/send`,
+						{
+							host_type: host_type,
+							smtp_host: smtp_host,
+							username: cloud_mailer_username,
+							password: cloud_mailer_password,
+							from_email: from_email,
+							to_email: current_payments_details.application.email,
+							subject: email_subject,
+							text: email_text,
+							html: email_html
+						},
+						{
+							headers: {
+								'mailer-access-key': cloud_mailer_key
 							}
-						} else {
-							throw new Error("Error completing payment");
 						}
-					});
+					);
+
+					if (mailer_response.data.success) {
+						if (mailer_response.data.data === null) {
+							BadRequestError(response, { unique_id: api_key, text: "Unable to send email to user" }, null);
+						} else {
+							await db.sequelize.transaction(async (transaction) => {
+								const payments = await PAYMENTS.update(
+									{
+										payment_status: completed,
+									}, {
+										where: {
+											unique_id: current_payments_details.unique_id,
+											reference: payload.reference,
+											type: transaction_types.payment,
+											status: default_status
+										},
+										transaction
+									}
+								);
+		
+								if (payments > 0) {
+									const application_update = await APPLICATIONS.update(
+										{
+											application_status: application_status.paid,
+										}, {
+											where: {
+												unique_id: current_payments_details.application_unique_id,
+												status: default_status
+											},
+											transaction
+										}
+									);
+		
+									if (application_update > 0) {
+										SuccessResponse(res, { unique_id: current_payments_details.application_unique_id, text: "Payment was completed successfully!" });
+									} else {
+										throw new Error("Error updating application status");
+									}
+								} else {
+									throw new Error("Error completing payment");
+								}
+							});
+						}
+					} else {
+						BadRequestError(res, { unique_id: api_key, text: mailer_response.data.message }, null);
+					}
 				}
 			} else {
 				BadRequestError(res, { unique_id: api_key, text: "Processing Payment not found!" }, null);
