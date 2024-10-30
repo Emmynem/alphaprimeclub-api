@@ -70,6 +70,30 @@ export default (sequelize, Sequelize) => {
 			type: Sequelize.STRING(3000),
 			allowNull: true,
 		},
+		file_one: {
+			type: Sequelize.STRING(500),
+			allowNull: true,
+		},
+		file_one_type: {
+			type: Sequelize.STRING(20),
+			allowNull: true,
+		},
+		file_one_public_id: {
+			type: Sequelize.STRING(500),
+			allowNull: true,
+		},
+		file_two: {
+			type: Sequelize.STRING(500),
+			allowNull: true,
+		},
+		file_two_type: {
+			type: Sequelize.STRING(20),
+			allowNull: true,
+		},
+		file_two_public_id: {
+			type: Sequelize.STRING(500),
+			allowNull: true,
+		},
 		application_status: {
 			type: Sequelize.STRING(50),
 			allowNull: false,

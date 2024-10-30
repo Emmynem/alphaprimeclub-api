@@ -32,7 +32,7 @@ export async function getApplications(req, res) {
 	const sortBy = return_all_letters_uppercase(req.query.sortBy) || return_all_letters_uppercase(req.body.sortBy) || "DESC";
 
 	APPLICATIONS.findAndCountAll({
-		attributes: { exclude: ['id', 'why', 'what', 'how', 'any'] },
+		attributes: { exclude: ['id', 'why', 'what', 'how', 'any', 'file_one_public_id', 'file_two_public_id'] },
 		order: [
 			[orderBy, sortBy]
 		],
@@ -60,7 +60,7 @@ export function getApplication(req, res) {
 		ValidationError(res, { unique_id: api_key, text: "Validation Error Occured" }, errors.array())
 	} else {
 		APPLICATIONS.findOne({
-			attributes: { exclude: ['id'] },
+			attributes: { exclude: ['id', 'file_one_public_id', 'file_two_public_id'] },
 			where: {
 				...payload
 			},
@@ -145,6 +145,12 @@ export async function addApplication(req, res) {
 								what: payload.what,
 								how: payload.how,
 								any: payload.any ? payload.any : null,
+								file_one: payload.file_one,
+								file_one_type: payload.file_one_type,
+								file_one_public_id: payload.file_one_public_id,
+								file_two: payload.file_two,
+								file_two_type: payload.file_two_type,
+								file_two_public_id: payload.file_two_public_id,
 								application_status: application_status.pending,
 								status: default_status
 							}, { transaction }

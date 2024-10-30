@@ -147,6 +147,18 @@ export const applications_rules = {
 			.bail()
 			.isLength({ min: 3, max: 3000 })
 			.withMessage(`Invalid length (3 - ${3000}) characters`),
+		check('file_one', "File One is required (url)")
+			.exists({ checkNull: true, checkFalsy: true }),
+		check('file_one_type', "File One Type is required")
+			.exists({ checkNull: true, checkFalsy: true }),
+		check('file_one_public_id', "File One Public Id is required")
+			.exists({ checkNull: true, checkFalsy: true }), 
+		check('file_two', "File Two is required (url)")
+			.exists({ checkNull: true, checkFalsy: true }),
+		check('file_two_type', "File Two Type is required")
+			.exists({ checkNull: true, checkFalsy: true }),
+		check('file_two_public_id', "File Two Public Id is required")
+			.exists({ checkNull: true, checkFalsy: true })
 	], 
 	forUpdatingApplicationStatus: [
 		check('application_status', "Application Status is required")
